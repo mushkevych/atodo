@@ -115,6 +115,8 @@ class AssistantApp:
             self.panel_main
         )
 
+        self._init_profile()
+
     def on_navigation_change(self, event):
         """Handle toggle switch event and update panel display."""
         if event.new == PAGE_NAME_CHAT:
@@ -147,6 +149,14 @@ class AssistantApp:
                 response += convert_to_messages(state['messages'])[-1].pretty_repr()
 
         return response
+
+    def _init_profile(self):
+        human_messages = [
+            "I am Dan. I live in Beaverton, Oregon, and like to ride my bicycle.",
+            "Create or update few ToDos: 1) Buy rye bread from nearby Whole Foods store by 2025-06-10. 2) Upload AToDo agentic app to the Github by March of 2025."
+        ]
+        for message in human_messages:
+            self.get_llm_response(message)
 
     def get_dashboard(self) -> pn.Column:
         """Returns the Panel dashboard."""

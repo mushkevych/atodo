@@ -1,6 +1,7 @@
 import os
 from dataclasses import dataclass, fields
 from datetime import datetime
+from enum import Enum
 from typing import Optional, Literal, Self, Any
 
 from langchain_core.runnables import RunnableConfig
@@ -42,17 +43,23 @@ class ToDo(BaseModel):
     )
 
 
+class MemoryType(Enum):
+    USER_PROFILE = 'user_profile'
+    TODO = 'todo'
+    INSTRUCTIONS = 'instructions'
+
+
 class UpdateMemory(TypedDict):
     """ Decision on what memory type to update """
-    update_type: Literal['user', 'todo', 'instructions']
+    update_type: Literal[MemoryType.USER_PROFILE.value, MemoryType.TODO.value, MemoryType.INSTRUCTIONS.value]
 
 
 @dataclass(kw_only=True)
 class Configuration:
     """The configurable fields for the chatbot."""
     user_id: str = 'default-user'
-    todo_category: str = 'general'
-    task_maistro_role: str = "You are a helpful task management assistant. You help you create, organize, and manage the user's ToDo list."
+    assistant_type: str = 'general'
+    atodo_assistant_role: str = "You are a helpful task management assistant. You help you create, organize, and manage the user's ToDo list."
 
     @classmethod
     def from_runnable_config(cls, config: Optional[RunnableConfig] = None) -> Self:

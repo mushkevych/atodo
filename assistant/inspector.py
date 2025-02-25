@@ -22,7 +22,7 @@ def extract_tool_info(tool_calls, schema_name='Memory'):
     
     Args:
         tool_calls: List of tool calls from the model
-        schema_name: Name of the schema tool (e.g., "Memory", "ToDo", "Profile")
+        schema_name: Name of the schema tool (e.g., "Memory", "ToDo", "UserProfile")
     """
     # Initialize list of changes
     changes = []

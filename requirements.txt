@@ -3,6 +3,7 @@ psycopg2-binary
 langchain-community
 langchain-core
 langchain-openai
+langchain-ollama
 langgraph
 trustcall
 
