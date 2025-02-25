@@ -59,7 +59,7 @@ class Configuration:
     """The configurable fields for the chatbot."""
     user_id: str = 'default-user'
     assistant_type: str = 'general'
-    atodo_assistant_role: str = "You are a helpful task management assistant. You help you create, organize, and manage the user's ToDo list."
+    atodo_assistant_role: str = "You are a helpful task management assistant. You help to create, organize, and track the user's ToDo list."
 
     @classmethod
     def from_runnable_config(cls, config: Optional[RunnableConfig] = None) -> Self:

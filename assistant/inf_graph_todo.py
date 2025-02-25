@@ -17,8 +17,8 @@ from assistant.inspector import ToolInvocationInspector, extract_tool_info
 
 # Chatbot instruction for choosing:
 # - what to update: user_profile, list of todos or instructions
-# - which tool to call: "user" tool, "todo_" tool or "instructions" tool
-INSTRUCTION_MEMORY_UPDATE = """{atodo_assistant_role} 
+# - which tool to call: "user_profile", "todo" or "instructions"
+INSTRUCTION_MEMORY_TOOL_AND_RESPONSE = """{atodo_assistant_role} 
 
 You have a long term memory which keeps track of three things:
 1. The user's profile (general information about them) 
@@ -51,12 +51,12 @@ Here are your instructions for reasoning about the user's messages:
 
 3. Tell the user that you have updated your memory, if appropriate:
 - Do not tell the user you have updated the user's profile
-- Tell the user when you updated the todo list
+- Tell the user when you updated the ToDo list
 - Do not tell the user that you have updated instructions
 
 4. Err on the side of updating the todo list. No need to ask for explicit permission.
 
-5. Respond naturally to the user after a tool call was made to save memories, or if no tool call was made."""
+5. After a tool call has been made to save memories, or if no tool call was needed, respond naturally to the user."""
 
 # Parallel trustcall: how to update memories about the user
 INSTRUCTION_USER_MEMORY_UPDATE = """Reflect on following interaction. 
@@ -67,8 +67,8 @@ Use parallel tool calling to handle updates and insertions simultaneously.
 
 System Time: {time}"""
 
-# Instructions for updating the aToDo list
-INSTRUCTION_UPDATE_INSTRUCTIONS_LIST = """Reflect on the following interaction.
+# Instructions for updating the ToDo list
+INSTRUCTION_INSTRUCTIONS_MEMORY_UPDATE = """Reflect on the following interaction.
 
 Based on this interaction, update your instructions for how to update ToDo list items. Use any feedback from the user to update how they like to have items added, etc.
 
@@ -119,7 +119,7 @@ def task_mAIstro(state: MessagesState, config: RunnableConfig, store: BaseStore)
     else:
         instructions = ''
 
-    system_msg = INSTRUCTION_MEMORY_UPDATE.format(
+    system_msg = INSTRUCTION_MEMORY_TOOL_AND_RESPONSE.format(
         atodo_assistant_role=atodo_assistant_role,
         user_profile=user_profile,
         todo=todo,
@@ -222,7 +222,7 @@ def update_todos(state: MessagesState, config: RunnableConfig, store: BaseStore)
     # Initialize the spy for visibility into the tool calls made by Trustcall
     spy = ToolInvocationInspector()
 
-    # Create the Trustcall extractor for updating the aToDo list
+    # Create the Trustcall extractor for updating the ToDo list
     todo_extractor = create_extractor(
         the_model,
         tools=[ToDo],
@@ -273,7 +273,7 @@ def update_instructions(state: MessagesState, config: RunnableConfig, store: Bas
     existing_memory = store.get(namespace=namespace, key=key)
 
     # Format the memory in the system prompt
-    system_msg = INSTRUCTION_UPDATE_INSTRUCTIONS_LIST.format(
+    system_msg = INSTRUCTION_INSTRUCTIONS_MEMORY_UPDATE.format(
         current_instructions=existing_memory.value if existing_memory else None
     )
     new_memory = the_model.invoke(

@@ -144,13 +144,13 @@ class AssistantApp:
             config=self.conversation_thread,
             stream_mode='values'
         ):
-            if event.get('event') == 'values':
-                state = event.data
-                response += convert_to_messages(state['messages'])[-1].pretty_repr()
+            if (comm := event['messages'][-1]) and comm.type == 'ai':
+                response += comm.content
 
         return response
 
     def _init_profile(self):
+        # self.chat_input.value = 'What tasks can I get done today?'
         human_messages = [
             "I am Dan. I live in Beaverton, Oregon, and like to ride my bicycle.",
             "Create or update few ToDos: 1) Buy rye bread from nearby Whole Foods store by 2025-06-10. 2) Upload AToDo agentic app to the Github by March of 2025."
