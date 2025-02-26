@@ -11,7 +11,7 @@ from langgraph.store.memory import InMemoryStore
 from trustcall import create_extractor
 
 import assistant.models
-from assistant.models import UserProfile, ToDo, UpdateMemory, Configuration, MemoryType
+from assistant.models import UserProfile, ToDo, UpdateMemory, MemoryType
 from assistant.services import llm_4o, llm_llama3_1_8b
 from assistant.inspector import ToolInvocationInspector, extract_tool_info
 
@@ -299,6 +299,15 @@ def update_instructions(state: MessagesState, config: RunnableConfig, store: Bas
     }
 
 
+class RouteListener:
+    def update(self, next_node: str) -> None:
+        # config['metadata']['langgraph_node']
+        raise NotImplementedError()
+
+
+route_listeners: set[RouteListener] = set()
+
+
 # Conditional edge
 def route_message(
     state: MessagesState, config: RunnableConfig, store: BaseStore
@@ -306,17 +315,22 @@ def route_message(
     """Reflect on the memories and chat history to decide whether to update the memory collection."""
     message = state['messages'][-1]
     if len(message.tool_calls) == 0:
-        return END
+        selected_node = END
     else:
         tool_call = message.tool_calls[0]
         if tool_call['args']['update_type'] == MemoryType.USER_PROFILE.value:
-            return update_user_profile.__name__
+            selected_node = update_user_profile.__name__
         elif tool_call['args']['update_type'] == MemoryType.TODO.value:
-            return update_todos.__name__
+            selected_node = update_todos.__name__
         elif tool_call['args']['update_type'] == MemoryType.INSTRUCTIONS.value:
-            return update_instructions.__name__
+            selected_node = update_instructions.__name__
         else:
-            raise ValueError
+            raise ValueError(f'Unknown update_type: {tool_call["args"]["update_type"]}')
+
+    global route_listeners
+    for route_listener in route_listeners:
+        route_listener.update(selected_node)
+    return selected_node
 
 
 def build_graph() -> StateGraph:
@@ -337,12 +351,7 @@ def build_graph() -> StateGraph:
     builder.add_edge(update_instructions.__name__, task_mAIstro.__name__)
     return builder
 
-# Store for long-term (across-thread) memory
-across_thread_memory = InMemoryStore()
 
-# Checkpointer for short-term (within-thread) memory
-within_thread_memory = MemorySaver()
-
-# graph = build_graph().compile()
-# compile the graph with the checkpointer and memory_store
+across_thread_memory = InMemoryStore()  # Store for long-term (across-thread) memory
+within_thread_memory = MemorySaver()  # Checkpointer for short-term (within-thread) memory
 graph = build_graph().compile(checkpointer=within_thread_memory, store=across_thread_memory)

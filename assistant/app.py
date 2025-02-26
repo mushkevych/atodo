@@ -1,15 +1,11 @@
-import base64
 from typing import Any
 
-import networkx as nx
 import panel as pn
-from langchain_core.messages import HumanMessage, convert_to_messages
+from langchain_core.messages import HumanMessage
 from langchain_openai import OpenAI
-from langgraph.graph import StateGraph
-from pyvis.network import Network
 
-from assistant.inf_graph_todo import graph as graph_todo
-from assistant.models import UserProfile, ToDo, UpdateMemory
+from assistant.graph_visualizer import GraphVisualizer, NodeColorizer
+from assistant.inf_graph_todo import graph as graph_todo, route_listeners
 from utils.fs_utils import load_api_key
 
 PAGE_NAME_CHAT = 'Chat'
@@ -22,34 +18,6 @@ SAMPLE_JSON = {
     'list'  : [1, 2, 3],
     'string': 'A very-very-very long-long-long string',
 }
-
-
-def generate_graph_html(graph: StateGraph) -> pn.pane.HTML:
-    """Generates a PyVis graph from the LangGraph instance, embedded via a Base64 data URI."""
-    # Build a DiGraph from the LangGraph edges
-    G: nx.DiGraph = nx.DiGraph()
-    edges = graph.get_graph(xray=1).edges
-    for edge in edges:
-        G.add_edge(edge[0], edge[1])
-
-    # Create a PyVis network
-    nt: Network = Network(height='500px', width='500px', directed=True)
-    nt.from_nx(G)
-
-    # Get the raw HTML for the PyVis network
-    net_html: str = nt.generate_html()
-
-    # Convert the HTML to a Base64 data URI and embed it in an iframe
-    net_html_b64: str = base64.b64encode(net_html.encode()).decode()
-    iframe_html: str = f"""
-        <iframe 
-            src="data:text/html;base64,{net_html_b64}"
-            height="500px" 
-            width="500px" 
-            style="border:none;"
-        ></iframe>
-        """
-    return pn.pane.HTML(iframe_html, sizing_mode='stretch_both')
 
 
 class AssistantApp:
@@ -67,11 +35,16 @@ class AssistantApp:
         self.chat_interface = pn.Column(
             self.chat_feed,
             self.chat_input,
-            sizing_mode='stretch_both'
+            sizing_mode='stretch_both',
+            styles={'border': '1px solid black', 'padding': '10px', 'border-radius': '5px'},
         )
 
-        self.panel_main = pn.Column(
+        self.graph_visualizer = GraphVisualizer(graph_todo)
+        route_listeners.add(NodeColorizer(self.graph_visualizer))
+
+        self.panel_main = pn.Row(
             self.chat_interface,
+            self.graph_visualizer,
             sizing_mode='stretch_both',
             margin=10
         )
@@ -85,10 +58,8 @@ class AssistantApp:
 
         self.je_instructions = pn.widgets.JSONEditor(value=SAMPLE_JSON, mode='view', sizing_mode='stretch_both')
 
-        html_graph_todo: pn.pane.HTML = generate_graph_html(graph_todo)
         self.panel_details = pn.Column(
             pn.Tabs(
-                ('graph', html_graph_todo),
                 ('mem: User Profile', self.je_user_profile),
                 ('mem: ToDos', self.je_todos),
                 ('mem: Instructions', self.je_instructions),
