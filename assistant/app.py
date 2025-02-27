@@ -1,23 +1,22 @@
-from typing import Any
-
 import panel as pn
+from param.parameterized import Event
+
 from langchain_core.messages import HumanMessage
 from langchain_openai import OpenAI
 
+from assistant.models import Configuration, MemoryType
 from assistant.graph_visualizer import GraphVisualizer, NodeColorizer
-from assistant.inf_graph_todo import graph as graph_todo, route_listeners
+from assistant.inf_graph_todo import graph as graph_todo, route_listeners, across_thread_memory
 from utils.fs_utils import load_api_key
 
 PAGE_NAME_CHAT = 'Chat'
 PAGE_NAME_DETAILS = 'Details'
 
-SAMPLE_JSON = {
-    'dict'  : {'key': 'value'},
-    'float' : 3.14,
-    'int'   : 1,
-    'list'  : [1, 2, 3],
-    'string': 'A very-very-very long-long-long string',
-}
+TAB_USER_PROFILE = 'mem: User Profile'
+TAB_TODO = 'mem: ToDos'
+TAB_INSTRUCTIONS = 'mem: Instructions'
+
+EMPTY_JSON = {}
 
 
 class AssistantApp:
@@ -52,19 +51,20 @@ class AssistantApp:
         # -----------------------------
         # Construct "details" page
         # -----------------------------
-        self.je_user_profile = pn.widgets.JSONEditor(value=SAMPLE_JSON, mode='view', sizing_mode='stretch_both')
+        self.je_user_profile = pn.widgets.JSONEditor(value=EMPTY_JSON, mode='view', sizing_mode='stretch_both')
+        self.je_todos = pn.widgets.JSONEditor(value=EMPTY_JSON, mode='view', sizing_mode='stretch_both')
+        self.je_instructions = pn.widgets.JSONEditor(value=EMPTY_JSON, mode='view', sizing_mode='stretch_both')
 
-        self.je_todos = pn.widgets.JSONEditor(value=SAMPLE_JSON, mode='view', sizing_mode='stretch_both')
-
-        self.je_instructions = pn.widgets.JSONEditor(value=SAMPLE_JSON, mode='view', sizing_mode='stretch_both')
+        self.tabs_details = pn.Tabs(
+            (TAB_USER_PROFILE, self.je_user_profile),
+            (TAB_TODO, self.je_todos),
+            (TAB_INSTRUCTIONS, self.je_instructions),
+            dynamic=True
+        )
+        self.tabs_details.param.watch(self.on_details_change, 'active')
 
         self.panel_details = pn.Column(
-            pn.Tabs(
-                ('mem: User Profile', self.je_user_profile),
-                ('mem: ToDos', self.je_todos),
-                ('mem: Instructions', self.je_instructions),
-                dynamic=True
-            ),
+            self.tabs_details,
             sizing_mode='stretch_both',
             margin=10
         )
@@ -88,14 +88,41 @@ class AssistantApp:
 
         self._init_profile()
 
-    def on_navigation_change(self, event):
-        """Handle toggle switch event and update panel display."""
+    def on_navigation_change(self, event: Event):
+        """Handle toggle switch event and update dashboard display."""
+        self.graph_visualizer.clear_graph()
+        self.dashboard.clear()
         if event.new == PAGE_NAME_CHAT:
-            self.dashboard[:] = [self.navigation_bar, self.panel_main]  # Show Chat panel
+            self.graph_visualizer.restore_graph()
+            self.dashboard.extend([self.navigation_bar, self.panel_main])
         else:
-            self.dashboard[:] = [self.navigation_bar, self.panel_details]  # Show Details panel
+            self.dashboard.extend([self.navigation_bar, self.panel_details])
+            self.on_navigation_change(Event(name='active', what='active', type='changed', old=None, new=0))
 
-    def submit_message_action(self, event: Any = None) -> None:
+    def on_details_change(self, event: Event):
+        tab_mapping = {
+            0: TAB_USER_PROFILE,
+            1: TAB_TODO,
+            2: TAB_INSTRUCTIONS
+        }
+
+        selected_tab = tab_mapping.get(event.new, None)
+        if selected_tab == TAB_USER_PROFILE:
+            namespace = (MemoryType.USER_PROFILE.value, Configuration.assistant_type, Configuration.user_id)
+            component = self.je_user_profile
+        elif selected_tab == TAB_TODO:
+            namespace = (MemoryType.TODO.value, Configuration.assistant_type, Configuration.user_id)
+            component = self.je_todos
+        elif selected_tab == TAB_INSTRUCTIONS:
+            namespace = (MemoryType.INSTRUCTIONS.value, Configuration.assistant_type, Configuration.user_id)
+            component = self.je_instructions
+        else:
+            raise ValueError(f'Unknown event {event.new}')
+
+        existing_memory = across_thread_memory.search(namespace)
+        component.value = [entry.value for entry in existing_memory]
+
+    def submit_message_action(self, event: Event) -> None:
         """Handles message submission and updates the chat feed."""
         user_message = event.new
         if user_message:

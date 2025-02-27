@@ -72,12 +72,21 @@ class GraphVisualizer(pn.pane.HTML):
         net_html = self.nt.generate_html()
         net_html_b64 = base64.b64encode(net_html.encode()).decode()
 
+        # Assign a new iframe, ensuring it updates correctly
         self.object = f"""
         <iframe 
             src="data:text/html;base64,{net_html_b64}"
             style="border:none; height: 100vh; width: 100%; display: block;">
         </iframe>
-    """
+        """
+
+    def clear_graph(self):
+        """Removes the iframe to prevent layout issues."""
+        self.object = None  # Clears the iframe to free up the UI
+
+    def restore_graph(self):
+        """Restores the iframe by regenerating the HTML."""
+        self._update_html()  # Calls the update function to regenerate the iframe
 
     def update_node_color(self, selected_node: str) -> None:
         """Change the color of a node dynamically without reloading layout."""

@@ -1,3 +1,6 @@
+from typing import Any
+
+
 class ToolInvocationInspector:
     """ Inspect the tool calls for Trustcall """
     def __init__(self):
@@ -15,7 +18,7 @@ class ToolInvocationInspector:
                 )
 
 
-def extract_tool_info(tool_calls, schema_name='Memory'):
+def extract_tool_info(tool_calls: list[dict[str, Any]], schema_name='Memory'):
     """Extract information from tool calls for:
      - patches
      - new memories in Trustcall.
