@@ -1,12 +1,13 @@
-import panel as pn
-from param.parameterized import Event
+from collections import namedtuple
 
+import panel as pn
 from langchain_core.messages import HumanMessage
 from langchain_openai import OpenAI
+from param.parameterized import Event
 
-from assistant.models import Configuration, MemoryType
 from assistant.graph_visualizer import GraphVisualizer, NodeColorizer
 from assistant.inf_graph_todo import graph as graph_todo, route_listeners, across_thread_memory
+from assistant.models import Configuration, MemoryType
 from utils.fs_utils import load_api_key
 
 PAGE_NAME_CHAT = 'Chat'
@@ -17,7 +18,7 @@ TAB_TODO = 'mem: ToDos'
 TAB_INSTRUCTIONS = 'mem: Instructions'
 
 EMPTY_JSON = {}
-
+MockEvent = namedtuple('MockEvent', ['name', 'old', 'new'])
 
 class AssistantApp:
     def __init__(self) -> None:
@@ -81,25 +82,26 @@ class AssistantApp:
         )
         self.navigation_bar.param.watch(self.on_navigation_change, 'value')
 
+        self.panel_main.visible = True
+        self.panel_details.visible = False
         self.dashboard = pn.Column(
             self.navigation_bar,
-            self.panel_main
+            self.panel_main,
+            self.panel_details
         )
 
         self._init_profile()
 
     def on_navigation_change(self, event: Event):
-        """Handle toggle switch event and update dashboard display."""
-        self.graph_visualizer.clear_graph()
-        self.dashboard.clear()
         if event.new == PAGE_NAME_CHAT:
-            self.graph_visualizer.restore_graph()
-            self.dashboard.extend([self.navigation_bar, self.panel_main])
+            self.panel_main.visible = True
+            self.panel_details.visible = False
         else:
-            self.dashboard.extend([self.navigation_bar, self.panel_details])
-            self.on_navigation_change(Event(name='active', what='active', type='changed', old=None, new=0))
+            self.panel_main.visible = False
+            self.panel_details.visible = True
+            # self.on_details_change(MockEvent(name='active', old=None, new=0))
 
-    def on_details_change(self, event: Event):
+    def on_details_change(self, event: Event | MockEvent):
         tab_mapping = {
             0: TAB_USER_PROFILE,
             1: TAB_TODO,
@@ -150,8 +152,8 @@ class AssistantApp:
     def _init_profile(self):
         # self.chat_input.value = 'What tasks can I get done today?'
         human_messages = [
-            "I am Dan. I live in Beaverton, Oregon, and like to ride my bicycle.",
-            "Create or update few ToDos: 1) Buy rye bread from nearby Whole Foods store by 2025-06-10. 2) Upload AToDo agentic app to the Github by March of 2025."
+            'I am Dan. I live in Beaverton, Oregon, and like to ride my bicycle.',
+            'Create or update few ToDos: 1) Buy rye bread from nearby Whole Foods store by 2025-06-10. 2) Upload AToDo agentic app to the Github by March of 2025.'
         ]
         for message in human_messages:
             self.get_llm_response(message)
