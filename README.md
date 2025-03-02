@@ -6,3 +6,4 @@ On the main "Chat" page user is presented with the chatbot interface, as well as
 ![atodo-screenshot-1.png](docs/atodo-screenshot-1.png)
 ![atodo-screenshot-2.png](docs/atodo-screenshot-2.png)
 ![atodo-screenshot-3.png](docs/atodo-screenshot-3.png)
+![atodo-screenshot-4.png](docs/atodo-screenshot-4.png)

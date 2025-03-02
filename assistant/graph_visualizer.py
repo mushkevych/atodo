@@ -8,8 +8,9 @@ from pyvis.network import Network
 from assistant.inf_graph_todo import RouteListener
 
 # Define colors
-DEFAULT_COLOR = 'lightblue'
-SELECTED_COLOR = 'red'
+DEFAULT_NODE_COLOR = 'lightblue'
+TARGET_NODE_COLOR = 'red'
+SOURCE_NODE_COLOR = 'green'
 
 
 class GraphVisualizer(pn.pane.HTML):
@@ -35,7 +36,7 @@ class GraphVisualizer(pn.pane.HTML):
 
         # Initialize all nodes with the default color
         for node in self.nx_G.nodes:
-            self.node_colors[node] = DEFAULT_COLOR
+            self.node_colors[node] = DEFAULT_NODE_COLOR
 
         # Assign node positions to `nx_G`
         pos = nx.spring_layout(self.nx_G)
@@ -81,10 +82,16 @@ class GraphVisualizer(pn.pane.HTML):
         </iframe>
         """
 
-    def update_node_color(self, selected_node: str) -> None:
+    def update_node_color(self, source_node: str, target_node: str) -> None:
         """Change the color of a node dynamically without reloading layout."""
         for node in self.nx_G.nodes:
-            self.node_colors[node] = DEFAULT_COLOR if node != selected_node else SELECTED_COLOR
+            if node == source_node:
+                node_color = SOURCE_NODE_COLOR
+            elif node == target_node:
+                node_color = TARGET_NODE_COLOR
+            else:
+                node_color = DEFAULT_NODE_COLOR
+            self.node_colors[node] = node_color
         self._apply_colors()
         self._update_html()
 
@@ -93,5 +100,5 @@ class NodeColorizer(RouteListener):
     def __init__(self, graph_visualizer: GraphVisualizer, **params):
         self.graph_visualizer = graph_visualizer
 
-    def update(self, next_node: str) -> None:
-        self.graph_visualizer.update_node_color(next_node)
+    def update(self, current_node: str = None, next_node: str = None) -> None:
+        self.graph_visualizer.update_node_color(source_node=current_node, target_node=next_node)

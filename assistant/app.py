@@ -1,4 +1,5 @@
 from collections import namedtuple
+from datetime import datetime, timedelta
 
 import panel as pn
 from langchain_core.messages import HumanMessage
@@ -18,7 +19,7 @@ TAB_TODO = 'mem: ToDos'
 TAB_INSTRUCTIONS = 'mem: Instructions'
 
 EMPTY_JSON = {}
-MockEvent = namedtuple('MockEvent', ['name', 'old', 'new'])
+MockEvent = namedtuple(typename='MockEvent', field_names=['name', 'old', 'new'])
 
 class AssistantApp:
     def __init__(self) -> None:
@@ -31,10 +32,14 @@ class AssistantApp:
         self.chat_feed = pn.chat.ChatFeed()
         self.chat_input = pn.chat.ChatAreaInput()
         self.chat_input.param.watch(self.submit_message_action, 'value')
+        self.btn_simulate_conv = pn.widgets.Button(
+            name='Simulate conversation', button_type='default', button_style='outline'
+        )
+        self.btn_simulate_conv.on_click(self.simulate_conversation)
 
         self.chat_interface = pn.Column(
             self.chat_feed,
-            self.chat_input,
+            pn.Row(self.chat_input, self.btn_simulate_conv),
             sizing_mode='stretch_both',
             styles={'border': '1px solid black', 'padding': '10px', 'border-radius': '5px'},
         )
@@ -90,8 +95,6 @@ class AssistantApp:
             self.panel_details
         )
 
-        self._init_profile()
-
     def on_navigation_change(self, event: Event):
         if event.new == PAGE_NAME_CHAT:
             self.panel_main.visible = True
@@ -124,8 +127,11 @@ class AssistantApp:
         existing_memory = across_thread_memory.search(namespace)
         component.value = [entry.value for entry in existing_memory]
 
-    def submit_message_action(self, event: Event) -> None:
+    def submit_message_action(self, event: Event | MockEvent) -> None:
         """Handles message submission and updates the chat feed."""
+        self.btn_simulate_conv.disabled = True  # any interaction with the Input Field disables the Simulation Button
+
+
         user_message = event.new
         if user_message:
             msg_settings = dict(
@@ -149,14 +155,35 @@ class AssistantApp:
 
         return response
 
-    def _init_profile(self):
-        # self.chat_input.value = 'What tasks can I get done today?'
+    def simulate_conversation(self, event: Event | MockEvent) -> None:
         human_messages = [
             'I am Dan. I live in Beaverton, Oregon, and like to ride my bicycle.',
-            'Create or update few ToDos: 1) Buy rye bread from nearby Whole Foods store by 2025-06-10. 2) Upload AToDo agentic app to the Github by March of 2025.'
+            """
+Consider following instructions:
+- When providing a 'todo summary':
+  1. List all current tasks grouped by deadline (overdue, today, this week, future)
+  2. Highlight any tasks missing deadlines and gently encourage adding them
+  3. Note any tasks that seem important but lack time estimates
+- Proactively ask for deadlines when new tasks are added without them
+- Maintain a supportive tone while helping the user stay accountable
+- Help prioritize tasks based on deadlines and importance
+
+Your communication style should be encouraging and helpful, never judgmental. 
+
+When tasks are missing deadlines, respond with something like "I notice [task] doesn't have a deadline yet. Would you like to add one to help us track it better?
+            """,
+            f"""
+Current time is: {datetime.now().isoformat(timespec='minutes')}.
+Create or update few ToDos: 
+1) Buy rye bread from the nearby Whole Foods store by {(datetime.now() + timedelta(hours=3)).isoformat(timespec='minutes')}. 
+2) Upload AToDo agentic app to the Github by {(datetime.now() + timedelta(days=10)).isoformat(timespec='minutes')}.
+3) Register for Friends Of Trees event in my neighbourhood.
+            """,
+            f"""by {(datetime.now() + timedelta(days=30)).isoformat(timespec='minutes')}""",  # provide missing deadline
+            # 'Please show me my current tasks',
         ]
         for message in human_messages:
-            self.get_llm_response(message)
+            self.submit_message_action(MockEvent(name='value', old=None, new=message))
 
     def get_dashboard(self) -> pn.Column:
         """Returns the Panel dashboard."""

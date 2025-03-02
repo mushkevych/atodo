@@ -18,7 +18,7 @@ from assistant.inspector import ToolInvocationInspector, extract_tool_info
 # Chatbot instruction for choosing:
 # - what to update: user_profile, list of todos or instructions
 # - which tool to call: "user_profile", "todo" or "instructions"
-INSTRUCTION_MEMORY_TOOL_AND_RESPONSE = """{atodo_assistant_role} 
+INSTRUCTION_MEMORY_TOOL_AND_RESPONSE = """{assistant_role} 
 
 You have a long term memory which keeps track of three things:
 1. The user's profile (general information about them) 
@@ -89,14 +89,14 @@ profile_extractor = create_extractor(
 
 
 ## Node definitions
-def task_mAIstro(state: MessagesState, config: RunnableConfig, store: BaseStore):
+def task_controller(state: MessagesState, config: RunnableConfig, store: BaseStore):
     """Load memories from the Memory Store and use them to personalize the chatbot's response."""
 
     # Get the user ID from the config
     configurable = assistant.models.Configuration.from_runnable_config(config)
     user_id = configurable.user_id
     assistant_type = configurable.assistant_type
-    atodo_assistant_role = configurable.atodo_assistant_role
+    assistant_role = configurable.assistant_role
 
     # Retrieve profile memory from the store
     namespace = (MemoryType.USER_PROFILE.value, assistant_type, user_id)
@@ -120,7 +120,7 @@ def task_mAIstro(state: MessagesState, config: RunnableConfig, store: BaseStore)
         instructions = ''
 
     system_msg = INSTRUCTION_MEMORY_TOOL_AND_RESPONSE.format(
-        atodo_assistant_role=atodo_assistant_role,
+        assistant_role=assistant_role,
         user_profile=user_profile,
         todo=todo,
         instructions=instructions
@@ -136,7 +136,7 @@ def task_mAIstro(state: MessagesState, config: RunnableConfig, store: BaseStore)
     return {'messages': [response]}
 
 
-def update_user_profile(state: MessagesState, config: RunnableConfig, store: BaseStore):
+def tool_update_user_profile(state: MessagesState, config: RunnableConfig, store: BaseStore):
     """Reflect on the chat history and update User Profile memory collection."""
 
     # Get the user ID from the config
@@ -191,7 +191,7 @@ def update_user_profile(state: MessagesState, config: RunnableConfig, store: Bas
     }
 
 
-def update_todos(state: MessagesState, config: RunnableConfig, store: BaseStore):
+def tool_update_todos(state: MessagesState, config: RunnableConfig, store: BaseStore):
     """Reflect on the chat history and update the memory collection."""
 
     # Get the user ID from the config
@@ -244,10 +244,10 @@ def update_todos(state: MessagesState, config: RunnableConfig, store: BaseStore)
             r.model_dump(mode='json'),
         )
 
-    # Respond to the tool call made in task_mAIstro, confirming the update
+    # Respond to the tool call made in task_controller, confirming the update
     tool_calls = state['messages'][-1].tool_calls
 
-    # Extract the changes made by Trustcall and add the ToolMessage returned to task_mAIstro
+    # Extract the changes made by Trustcall and add the ToolMessage returned to task_controller
     todo_update_msg = extract_tool_info(spy.called_tools, tool_name)
     return {
         'messages': [
@@ -260,7 +260,7 @@ def update_todos(state: MessagesState, config: RunnableConfig, store: BaseStore)
     }
 
 
-def update_instructions(state: MessagesState, config: RunnableConfig, store: BaseStore):
+def tool_update_instructions(state: MessagesState, config: RunnableConfig, store: BaseStore):
     """Reflect on the chat history and update the memory collection."""
     key = 'user_instructions'
 
@@ -300,8 +300,7 @@ def update_instructions(state: MessagesState, config: RunnableConfig, store: Bas
 
 
 class RouteListener:
-    def update(self, next_node: str) -> None:
-        # config['metadata']['langgraph_node']
+    def update(self, current_node: str = None, next_node: str = None) -> None:
         raise NotImplementedError()
 
 
@@ -311,7 +310,7 @@ route_listeners: set[RouteListener] = set()
 # Conditional edge
 def route_message(
     state: MessagesState, config: RunnableConfig, store: BaseStore
-) -> Literal[END, update_todos.__name__, update_instructions.__name__, update_user_profile.__name__]:
+) -> Literal[END, tool_update_todos.__name__, tool_update_instructions.__name__, tool_update_user_profile.__name__]:
     """Reflect on the memories and chat history to decide whether to update the memory collection."""
     message = state['messages'][-1]
     if len(message.tool_calls) == 0:
@@ -319,17 +318,17 @@ def route_message(
     else:
         tool_call = message.tool_calls[0]
         if tool_call['args']['update_type'] == MemoryType.USER_PROFILE.value:
-            selected_node = update_user_profile.__name__
+            selected_node = tool_update_user_profile.__name__
         elif tool_call['args']['update_type'] == MemoryType.TODO.value:
-            selected_node = update_todos.__name__
+            selected_node = tool_update_todos.__name__
         elif tool_call['args']['update_type'] == MemoryType.INSTRUCTIONS.value:
-            selected_node = update_instructions.__name__
+            selected_node = tool_update_instructions.__name__
         else:
             raise ValueError(f'Unknown update_type: {tool_call["args"]["update_type"]}')
 
     global route_listeners
     for route_listener in route_listeners:
-        route_listener.update(selected_node)
+        route_listener.update(current_node=config['metadata']['langgraph_node'], next_node=selected_node)
     return selected_node
 
 
@@ -338,17 +337,17 @@ def build_graph() -> StateGraph:
     builder = StateGraph(MessagesState, config_schema=assistant.models.Configuration)
 
     # Define the flow of the memory extraction process
-    builder.add_node(task_mAIstro)
-    builder.add_node(update_todos)
-    builder.add_node(update_user_profile)
-    builder.add_node(update_instructions)
+    builder.add_node(task_controller)
+    builder.add_node(tool_update_todos)
+    builder.add_node(tool_update_user_profile)
+    builder.add_node(tool_update_instructions)
 
     # Define the flow
-    builder.add_edge(START, task_mAIstro.__name__)
-    builder.add_conditional_edges(task_mAIstro.__name__, route_message)
-    builder.add_edge(update_todos.__name__, task_mAIstro.__name__)
-    builder.add_edge(update_user_profile.__name__, task_mAIstro.__name__)
-    builder.add_edge(update_instructions.__name__, task_mAIstro.__name__)
+    builder.add_edge(START, task_controller.__name__)
+    builder.add_conditional_edges(task_controller.__name__, route_message)
+    builder.add_edge(tool_update_todos.__name__, task_controller.__name__)
+    builder.add_edge(tool_update_user_profile.__name__, task_controller.__name__)
+    builder.add_edge(tool_update_instructions.__name__, task_controller.__name__)
     return builder
 
 
