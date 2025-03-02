@@ -83,7 +83,9 @@ class GraphVisualizer(pn.pane.HTML):
         """
 
     def update_node_color(self, source_node: str, target_node: str) -> None:
-        """Change the color of a node dynamically without reloading layout."""
+        """Change the color of source_node, target_node, and the specific edge between them dynamically."""
+
+        # Update node colors
         for node in self.nx_G.nodes:
             if node == source_node:
                 node_color = SOURCE_NODE_COLOR
@@ -93,6 +95,15 @@ class GraphVisualizer(pn.pane.HTML):
                 node_color = DEFAULT_NODE_COLOR
             self.node_colors[node] = node_color
         self._apply_colors()
+
+        # Update edge colors
+        for edge in self.pyvis_network.get_edges():
+            if edge['from'] == source_node and edge['to'] == target_node:
+                edge['color'] = SOURCE_NODE_COLOR
+            else:
+                edge['color'] = DEFAULT_NODE_COLOR
+
+        # Update the visualization
         self._update_html()
 
 
